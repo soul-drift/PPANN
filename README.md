@@ -1,6 +1,6 @@
-# PP-ANN: Privacy Preserving Approximate Nearest Neighbor
+# PPANN: Privacy Preserving Approximate Nearest Neighbor
 
-This repository contains a Rust implementation of **PP-ANN**, a privacy-preserving approximate nearest neighbor (ANN) search framework for graph-based vector retrieval. 
+This repository contains a Rust implementation of **PPANN**, a privacy-preserving approximate nearest neighbor (ANN) search framework in TEEs.
 
 The current code is configured for **SIFT-style 128-dimensional vectors** and an NSG graph. It can be adapted to other vector dimensions and graph formats by changing the compile-time vector dimension and data paths.
 
@@ -19,38 +19,87 @@ The current code is configured for **SIFT-style 128-dimensional vectors** and an
 
 ---
 
+## Build and Run
+
+This project uses unstable Rust features:
+
+```rust
+#![feature(core_intrinsics)]
+#![feature(portable_simd)]
+```
+
+Use a nightly Rust toolchain:
+
+```bash
+rustup default nightly
+cargo run --release
+```
+
+Required crates include:
+
+```toml
+[dependencies]
+byteorder = "1"
+rand = { version = "0.8", features = ["small_rng"] }
+rayon = "1"
+xxhash-rust = { version = "0.8", features = ["xxh3"] }
+```
+
+Before running, make sure that the dataset paths in `main.rs` are changed to your local environment.
+
+Or you can use Python scripts  `run_exp.py`  for automated PP-ANN experiments. It dynamically modifies file paths and system hyperparameters within the Rust source code based on the provided command-line arguments, and automatically triggers `cargo run --release` to compile and execute. This eliminates the tedious process of manually editing the source code every time you change datasets or parameters.
+
+```
+$ cd PPANN/
+$ python run_exp.py \
+   --query_path QUERY_PATH \
+   --base_path BASE_PATH \
+   --graph_path GRAPH_PATH \
+   --certainty_path CERTAINTY_PATH \
+   --gt_path GT_PATH \
+   --freq_path FREQ_PATH \
+   --dim DIM \
+   --total_nodes TOTAL_NODES \
+   --max_degree MAX_DEGREE \
+   --k K \
+   --l_search L_SEARCH \
+   --t_0 T_0
+```
+
+## Detailed Parameter Description
+
+The arguments used in the command above cover two main categories: **File Paths** and **System Hyperparameters**.
+
+### File Path Parameters
+
+- **`--query_path`**: Query dataset path. Specifies the query vector file in `fvecs` format (e.g., `sift_query.fvecs`).
+- **`--base_path`**: Base vector set path. Specifies the base gallery vector file in `fvecs` format (e.g., `sift_base.fvecs`).
+- **`--graph_path`**: NSG graph file path. Specifies the text file containing the pre-built NSG graph structure(e.g., `nsg_sift.txt`).
+- **`--certainty_path`**: Hub node file path. Specifies the text file containing the selected hub (certainty) nodes.
+- **`--gt_path`**: Ground Truth file path. Specifies the ground truth file in `ivecs` format, used for evaluating the final Recall.
+- **`--freq_path`**: Offline node access frequency file path. Specifies the text file containing warm-up frequency data, used for the frequency-adaptive replica allocation mechanism.
+
+### Model & System Hyperparameters
+
+- **`--dim`**: Vector dimension. For example, SIFT is typically `128`, and GIST is `960`. The script automatically updates all array length definitions in the Rust code based on this parameter.
+- **`--total_nodes`**: Total number of base vectors. For example, `1000000` for SIFT1M. This parameter determines the memory allocation size for the deduplication array (visited bitmap).
+- **`--max_degree`**: Maximum neighbor limit of the graph. Determines the `MAX_DEGREE` constant size in the NodeData struct. Configured to `50` in the example.
+- **`--k`**: Target search result count. The number of Top-K results to return per query. Configured to `100` in the example.
+- **`--l_search`**: Candidate search queue length. The size of the candidate pool maintained during graph traversal. Configured to `200` in the example.
+- **`--t_0`**: Fixed search steps (hops). The fixed routing budget used to mask data-dependent memory access patterns. It controls the trade-off between search time and privacy strength. Configured to `2000` in the example.
+
+### Notes
+
+1. **Code Modification Backup**: Because this script uses regular expressions to **directly overwrite** the Rust source files in the `src/` directory, it is highly recommended to commit your code to a Git repository before use to prevent unexpected replacements from corrupting your code.
+2. **Compilation Environment**: The script will automatically invoke `cargo run --release` with the `-C target-cpu=native` flag enabled for compilation optimization. Please ensure that a Nightly Rust toolchain with SIMD support is correctly installed in your running environment.
+
+
+
+---
+
 ## Key Components and Functions
 
 ### `P_L_v2.rs`
-
-#### `NodeData`
-
-```rust
-pub struct NodeData {
-    pub vector: [f32; 128],
-    pub neighbors: [usize; MAX_DEGREE],
-}
-```
-
-Each graph node stores a fixed-size vector and up to `MAX_DEGREE` neighbor IDs. Empty neighbor slots are filled with `usize::MAX`.
-
-#### `UnifiedPool`
-
-```rust
-pub struct UnifiedPool {
-    pub hub_map: HashMap<usize, NodeData>,
-    pub flat_pool: Vec<NodeData>,
-    pub replica_limits: Vec<u32>,
-    pub replica_prefix_sum: Vec<usize>,
-    pub epoch_access_counts: Vec<u32>,
-    ...
-}
-```
-
-`UnifiedPool` separates the index into two logical regions:
-
-- `P_h`: hub nodes stored in `hub_map`;
-- `P_n`: normal nodes stored in `flat_pool`.
 
 #### `UnifiedPool::oblivious_reconstruct`
 
@@ -87,38 +136,6 @@ Exports the empirical node access frequency of the current epoch and resets the 
 ---
 
 ### `ppann.rs`
-
-#### `Candidate`
-
-```rust
-pub struct Candidate {
-    pub id: usize,
-    pub dist: f32,
-    pub has_expanded: u32,
-}
-```
-
-A candidate stores the node ID, distance to the query, and expansion state. Ordering is defined by distance so it can be used in Rust heaps.
-
-#### `euclidean_distance_simd`
-
-Computes squared Euclidean distance with `std::simd::f32x32`. This is used both for hub entry selection and graph traversal.
-
-#### `pp_ann`
-
-```rust
-pub fn pp_ann(
-    pt: &mut UnifiedPool,
-    q: &[f32; 128],
-    k: usize,
-    l: usize,
-    t_0: usize,
-    hub_nodes_in_l3: &[(usize, [f32; 128])],
-    expo: &mut [bool; 1000000],
-) -> Vec<Candidate>
-```
-
-The top-level query interface. It first scans hub nodes to find the nearest entry point, then calls `obli_routing` for privacy-aware graph traversal.
 
 #### `obli_routing`
 
