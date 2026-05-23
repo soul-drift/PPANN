@@ -11,7 +11,7 @@ The current code is configured for **SIFT-style 128-dimensional vectors** and an
 ```text
 .
 ├── main.rs          # End-to-end experiment pipeline: load data, rebuild index, run queries, evaluate Recall@K
-├── P_L_v2.rs        # Core OSUI memory pool and oblivious reconstruction logic
+├── pool.rs        # Core OSUI memory pool and oblivious reconstruction logic
 ├── ppann.rs         # Privacy-preserving ANN search and graph routing
 ├── data_read.rs     # Dataset, NSG graph, hub node, frequency, and ground-truth loaders
 └── sort.rs          # optional bitonic sort utilities
@@ -99,7 +99,7 @@ The arguments used in the command above cover two main categories: **File Paths*
 
 ## Key Components and Functions
 
-### `P_L_v2.rs`
+### `pool.rs`
 
 #### `UnifiedPool::oblivious_reconstruct`
 
