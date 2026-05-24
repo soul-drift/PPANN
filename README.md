@@ -51,7 +51,7 @@ Before running, make sure that the dataset paths in `main.rs` are changed to you
 
 ### Run Automated Experiments with Python Scripts
 
-Or you can use Python scripts  `run_exp.py`  for automated PP-ANN experiments. It dynamically modifies file paths and system hyperparameters within the Rust source code based on the provided command-line arguments, and automatically triggers `cargo run --release` to compile and execute. This eliminates the tedious process of manually editing the source code every time you change datasets or parameters.
+Or you can use Python scripts  `run_exp.py`  for automated PPANN experiments. It dynamically modifies file paths and system hyperparameters within the Rust source code based on the provided command-line arguments, and automatically triggers `cargo run --release` to compile and execute. This eliminates the tedious process of manually editing the source code every time you change datasets or parameters.
 
 ```
 $ cd PPANN/
@@ -97,11 +97,24 @@ The arguments used in the command above cover two main categories: **File Paths*
 1. **Code Modification Backup**: Because this script uses regular expressions to **directly overwrite** the Rust source files in the `src/` directory, it is highly recommended to commit your code to a Git repository before use to prevent unexpected replacements from corrupting your code.
 2. **Compilation Environment**: The script will automatically invoke `cargo run --release` with the `-C target-cpu=native` flag enabled for compilation optimization. Please ensure that a Nightly Rust toolchain with SIMD support is correctly installed in your running environment.
 
-
+## Key Components and Functions
 
 ---
 
-## Key Components and Functions
+### `ppann.rs`
+
+#### `obli_routing`
+
+The main graph search routine. It maintains:
+
+- a min-heap queue for candidate expansion;
+- a max-heap result pool of size `L`;
+- a visited bitmap `expo`;
+- a fixed routing budget `t_0`.
+
+The first `15%` of the routing budget uses `UnifiedPool::get`; the remaining `85%` uses `UnifiedPool::get_normal_only`. Nodes with unknown distances are inserted with `dist = -1.0`, then evaluated when popped from the queue.
+
+---
 
 ### `pool.rs`
 
@@ -120,37 +133,6 @@ It performs four steps:
 
 4. **Segmented parallel copy**  
    Copies vectors and neighbor lists into `flat_pool` through L3-cache-aware chunks and Rayon parallelism.
-
-#### `UnifiedPool::perfect_hash`
-
-Maps a logical access `(node_id, nth_replica)` to a physical memory slot. It uses a prefix-sum base offset plus a seeded LCG permutation. The parameter `a` is forced to be coprime with the pool size to avoid collisions in the physical address permutation.
-
-#### `UnifiedPool::get`
-
-Privacy-aware node access used in the early routing phase. It records the access count, performs both hub-side and normal-side access logic, and returns the correct result through a mask-based selection. If the allocated replica budget is exhausted, it performs a dummy read and returns an empty node to keep the access behavior regular.
-
-#### `UnifiedPool::get_normal_only`
-
-Fast normal-node access used in the later routing phase. It still consumes single-use replica slots and records access frequency, but removes the hub camouflage path to improve throughput.
-
-#### `UnifiedPool::export_and_reset_frequencies`
-
-Exports the empirical node access frequency of the current epoch and resets the counter. The returned distribution is used by the next reconstruction to adapt replica allocation.
-
----
-
-### `ppann.rs`
-
-#### `obli_routing`
-
-The main graph search routine. It maintains:
-
-- a min-heap queue for candidate expansion;
-- a max-heap result pool of size `L`;
-- a visited bitmap `expo`;
-- a fixed routing budget `t_0`.
-
-The first `15%` of the routing budget uses `UnifiedPool::get`; the remaining `85%` uses `UnifiedPool::get_normal_only`. Nodes with unknown distances are inserted with `dist = -1.0`, then evaluated when popped from the queue.
 
 ---
 
