@@ -97,6 +97,8 @@ The arguments used in the command above cover two main categories: **File Paths*
 1. **Code Modification Backup**: Because this script uses regular expressions to **directly overwrite** the Rust source files in the `src/` directory, it is highly recommended to commit your code to a Git repository before use to prevent unexpected replacements from corrupting your code.
 2. **Compilation Environment**: The script will automatically invoke `cargo run --release` with the `-C target-cpu=native` flag enabled for compilation optimization. Please ensure that a Nightly Rust toolchain with SIMD support is correctly installed in your running environment.
 
+---
+
 ## Key Components and Functions
 
 ### `ppann.rs`
