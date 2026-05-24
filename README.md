@@ -28,6 +28,8 @@ This project uses unstable Rust features:
 #![feature(portable_simd)]
 ```
 
+### Compile and Run Directly with Rust
+
 Use a nightly Rust toolchain:
 
 ```bash
@@ -46,6 +48,8 @@ xxhash-rust = { version = "0.8", features = ["xxh3"] }
 ```
 
 Before running, make sure that the dataset paths in `main.rs` are changed to your local environment.
+
+### Run Automated Experiments with Python Scripts
 
 Or you can use Python scripts  `run_exp.py`  for automated PP-ANN experiments. It dynamically modifies file paths and system hyperparameters within the Rust source code based on the provided command-line arguments, and automatically triggers `cargo run --release` to compile and execute. This eliminates the tedious process of manually editing the source code every time you change datasets or parameters.
 
@@ -86,7 +90,7 @@ The arguments used in the command above cover two main categories: **File Paths*
 - **`--max_degree`**: Maximum neighbor limit of the graph. Determines the `MAX_DEGREE` constant size in the NodeData struct. Configured to `50` in the example.
 - **`--k`**: Target search result count. The number of Top-K results to return per query. Configured to `100` in the example.
 - **`--l_search`**: Candidate search queue length. The size of the candidate pool maintained during graph traversal. Configured to `200` in the example.
-- **`--t_0`**: Fixed search steps (hops). The fixed routing budget used to mask data-dependent memory access patterns. It controls the trade-off between search time and privacy strength. Configured to `2000` in the example.
+- **`--t_0`**: The fixed routing number. Configured to `2000` in the example.
 
 ### Notes
 
@@ -141,12 +145,12 @@ Exports the empirical node access frequency of the current epoch and resets the 
 
 The main graph search routine. It maintains:
 
-- a min-heap frontier for candidate expansion;
+- a min-heap queue for candidate expansion;
 - a max-heap result pool of size `L`;
 - a visited bitmap `expo`;
 - a fixed routing budget `t_0`.
 
-The first `15%` of the routing budget uses `UnifiedPool::get`; the remaining `85%` uses `UnifiedPool::get_normal_only`. Nodes with unknown distances are inserted with `dist = -1.0`, then evaluated when popped from the frontier.
+The first `15%` of the routing budget uses `UnifiedPool::get`; the remaining `85%` uses `UnifiedPool::get_normal_only`. Nodes with unknown distances are inserted with `dist = -1.0`, then evaluated when popped from the queue.
 
 ---
 
