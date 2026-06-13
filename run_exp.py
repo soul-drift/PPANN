@@ -57,7 +57,6 @@ def main():
     ])
 
     # 2. 修改 src/ppann.rs
-    # 2. 修改 src/ppann.rs
     update_file('src/ppann.rs', [
         (r'\[f32; \d+\]', f'[f32; {args.dim}]'),
         (r'\(0\.\.\d+\)\.step_by\(32\)', f'(0..{args.dim}).step_by(32)'),
