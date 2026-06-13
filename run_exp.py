@@ -49,8 +49,8 @@ def main():
 
     # 注意：确保这里的文件路径匹配你实际的 src/ 目录结构
     
-    # 1. 修改 src/pool
-    update_file('src/pool', [
+    # 1. 修改 src/pool.rs
+    update_file('src/pool.rs', [
         (r'pub const MAX_DEGREE: usize = \d+;', f'pub const MAX_DEGREE: usize = {args.max_degree};'),
         (r'\[f32; \d+\]', f'[f32; {args.dim}]'),
         (r'\[0\.0; \d+\]', f'[0.0; {args.dim}]'),
